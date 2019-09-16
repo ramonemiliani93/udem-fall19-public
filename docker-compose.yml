@@ -15,11 +15,14 @@ services:
         - ./utils:/duckietown/utils
         - ./custom:/duckietown/custom
         - ./custom_ws:/duckietown/custom_ws
+        - /tmp/.X11-unix:/tmp/.X11-unix:rw
         expose:
         - "8888"
         ports:
         - "8888:8888"
-
+        environment:
+        - DISPLAY
+        - QT_X11_NO_MITSHM=1
 
 networks:
     duckietown-docker-net:
