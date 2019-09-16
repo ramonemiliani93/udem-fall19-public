@@ -13,13 +13,18 @@
     <arg name="/lane_following/ground_projection" default="true"/>
     <arg name="/lane_following/lane_controller" default="true"/>
 
+    <arg name="inverse_kinematics" default="true"/>
+
+    <group>
+        <remap from="/baseline/wheels_driver_node/wheels_cmd" to="/baseline/inverse_kinematics_node/wheels_cmd"/>
+        <node name="gymdt" pkg="gymdt" type="gymdt_node.py" />
+    </group>
 
     <group if="$(arg lane_following)">
 
         <!-- Line Detector -->
         <group if="$(arg /lane_following/line_detection)">
-                <remap from="line_detector_node/transform" to="anti_instagram_node/transform"/>
-                <remap from="line_detector_node/corrected_image/compressed" to="corrected_image/compressed"/>
+                <remap from="/baseline/line_detector_node/corrected_image/compressed" to="/baseline/corrected_image/compressed"/>
                 <include file="$(find line_detector)/launch/line_detector_node.launch">
                     <arg name="veh" value="$(arg veh)"/>
                     <!-- NOTE: "line_detector_param_file_name" as special case -->
@@ -30,6 +35,7 @@
 
             <!-- Ground Projection -->
             <group if="$(arg /lane_following/ground_projection)">
+                    <remap from="/baseline/ground_projection/lineseglist_in" to="/baseline/line_detector_node/segment_list"/>
                     <include file="$(find ground_projection)/launch/ground_projection.launch">
                         <arg name="veh" value="$(arg veh)"/>
                         <arg name="param_file_name" value="$(arg param_file_name)"/>
@@ -38,8 +44,8 @@
 
             <!-- Lane Filter -->
             <group if="$(arg /lane_following/lane_filter)">
-                <remap from="lane_filter_node/segment_list" to="ground_projection/lineseglist_out"/>
-                <remap from="lane_filter_node/car_cmd" to="/$(arg veh)/car_cmd"/>
+                <remap from="/baseline/lane_filter_node/car_cmd" to="/baseline/lane_controller_node/car_cmd"/>
+                <remap from="/baseline/lane_filter_node/segment_list" to="/baseline/ground_projection/lineseglist_out"/>
                 <include file="$(find lane_filter)/launch/lane_filter_node.launch">
                     <arg name="veh" value="$(arg veh)"/>
                     <arg name="param_file_name" value="$(arg param_file_name)"/>
@@ -48,15 +54,24 @@
             
             <!-- Lane controller -->
             <group if="$(arg /lane_following/lane_controller)">
-                <remap from="lane_controller_node/lane_pose" to="lane_filter_node/lane_pose"/>
-                <remap from="lane_controller_node/wheels_cmd_executed" to="wheels_driver_node/wheels_cmd_executed" />
-                <remap from="lane_controller_node/actuator_limits" to="inverse_kinematics_node/actuator_limits" />
-
+                <remap from="/baseline/lane_controller_node/actuator_limits" to="/baseline/inverse_kinematics_node/actuator_limits"/>
+                <remap from="/baseline/lane_controller_node/lane_pose" to="/baseline/lane_filter_node/lane_pose"/>
+                <remap from="/baseline/lane_controller_node/wheels_cmd_executed" to="/baseline/inverse_kinematics_node/wheels_cmd"/>
                 <include file="$(find lane_control)/launch/lane_controller_node.launch">
                     <arg name="veh" value="$(arg veh)"/>
                     <arg name="param_file_name" value="$(arg param_file_name)"/>
                 </include>
             </group>
+
+            <!-- Inverse Kinematic Node -->
+            <group if="$(arg inverse_kinematics)">
+                <remap from="/baseline/inverse_kinematics_node/car_cmd" to="/baseline/lane_controller_node/car_cmd"/>
+                <remap from="/baseline/inverse_kinematics_node/actuator_limits_received" to="/baseline/lane_controller_node/actuator_limits_received"/>
+                <include file="$(find dagu_car)/launch/inverse_kinematics_node.launch">
+                    <arg name="veh" value="$(arg veh)"/>
+                </include>
+            </group>
+
     </group> -->
     <!-- End Lane Control -->
 </launch>
