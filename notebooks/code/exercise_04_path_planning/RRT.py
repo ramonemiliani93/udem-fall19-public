@@ -1,5 +1,6 @@
 import random
 import math
+import numpy as np
 import matplotlib.pyplot as plt
 
 
@@ -29,7 +30,7 @@ class RRT_planner:
             rand_area: random Sampling Area [x_min, x_max, y_min, y_max]
             max_branch_length : maximal extension for one step
             path_res : resolution of obstacle checking in the path
-            goal_sample_rate : percentage of samples that are artifically set to the goal
+            goal_sample_rate : percentage of samples that are artificially set to the goal
             max_iter: maximal number of iterations
 
         """
@@ -60,6 +61,24 @@ class RRT_planner:
 
             #######
 
+            collision = True
+            while collision:
+                # Sample random node
+                random_node = self.get_random_node()
+
+                # Find the nearest node
+                nearest_node_id = self.get_closest_node_id(self.list_nodes, random_node)
+                nearest_node = self.list_nodes[nearest_node_id]
+
+                # Sample new node that is an incremental distance away
+                new_node = self.extend(nearest_node, random_node)
+
+                # Check if there is a collision in the path
+                collision = self.collision(new_node, self.list_obstacles)
+
+            # Add node to existing list of nodes
+            self.list_nodes.append(new_node)
+
             if show_anim and it % 5 == 0:
                 self.draw_graph(random_node)
 
@@ -74,7 +93,8 @@ class RRT_planner:
 
     def extend(self, or_node, dest_node):
         """
-        Returns a new node going from or_node in the direction of dest_node with maximal distance of max_branch_length. New node path goes from parent to new node with steps of path_res.
+        Returns a new node going from or_node in the direction of dest_node with maximal distance of max_branch_length.
+        New node path goes from parent to new node with steps of path_res.
         """
         new_node = self.Node(or_node.x, or_node.y)
         dist, angle = self.compute_dist_ang(new_node, dest_node)
@@ -176,27 +196,30 @@ class RRT_planner:
     @staticmethod
     def get_closest_node_id(list_nodes, random_node):
         # Returns index of node in list_nodes that is the closest to random_node
-        dist_list = [(node.x - random_node.x) ** 2 + (node.y - random_node.y)
-                 ** 2 for node in list_nodes]
+        dist_list = [(node.x - random_node.x) ** 2 + (node.y - random_node.y) ** 2 for node in list_nodes]
         min_id = dist_list.index(min(dist_list))
 
         return min_id
     
-    
-    
+
 class RTT_Path_Follower:
     """
     Follows a path given by RRT_Planner
     """
-    def __init__(self, path, local_env):
+    def __init__(self, path, local_env, proportional_gain=6, derivative_gain=1, alpha=1000):
         self.path = path
         self.env = local_env
+        self.proportional_gain = proportional_gain
+        self.derivative_gain = derivative_gain
+        self.alpha = alpha
+        self.last_angle = 0
+        self.last_distance = 0
     
     def next_action(self):
         # Current position and angle
         cur_pos_x = self.env.cur_pos[0]
         cur_pos_y = self.env.cur_pos[2]
-        cur_angle = self.env.cur_angle
+        cur_angle = self.env.cur_angle % (2 * np.pi)
         
         v = 0.
         omega = 0.
@@ -206,6 +229,31 @@ class RTT_Path_Follower:
         # YOUR CODE HERE: change v and omega so that the Duckiebot keeps on following the path
         #
         #######
+
+        epsilon_angle = 1e-1
+        epsilon_distance = 1e-1
+
+        # Check if agent is in node
+        if ((cur_pos_y - self.path[-1][1]) ** 2 + (cur_pos_x - self.path[-1][0]) ** 2) ** 0.5 < epsilon_distance:
+            self.path = self.path[:-1]
+
+        # Use last registered node in path
+        next_node = self.path[-1]
+
+        # If the agent is not pointing towards the goal output a rotation command
+        goal_angle = -np.angle(next_node[0] - cur_pos_x + (next_node[1] - cur_pos_y) * 1j) % (2 * np.pi)
+        if np.abs(cur_angle - goal_angle) > epsilon_angle:
+            omega = self.proportional_gain * (goal_angle - cur_angle) \
+                    + self.derivative_gain * ((goal_angle - cur_angle) - self.last_angle)
+            self.last_angle = goal_angle - cur_angle
+        # When the agent is pointing towards the goal go straight
+        else:
+            distance = ((next_node[1] - cur_pos_y) ** 2 + (next_node[0] - cur_pos_x) ** 2) ** 0.5
+            v = self.alpha * (self.proportional_gain * distance + self.derivative_gain * (distance - self.last_distance))
+            self.last_distance = distance
         
         return v, omega
+<<<<<<< HEAD
     
+=======
+>>>>>>> Include exercise RRT
