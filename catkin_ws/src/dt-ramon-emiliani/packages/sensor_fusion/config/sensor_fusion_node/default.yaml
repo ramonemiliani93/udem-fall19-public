@@ -1,4 +1,5 @@
-lookahead_distance: 0.10
-reference_points: 5
-#lane_size: 0.27
-linear_speed: 0.5
+lookahead_distance: 0.05
+reference_points: 15
+lane_size: 0.58
+linear_speed: 0.4
+alpha: 1.5

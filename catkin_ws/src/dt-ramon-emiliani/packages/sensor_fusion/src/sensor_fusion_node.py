@@ -10,12 +10,13 @@ import json
 import numpy as np
 import collections
 import copy
+import time
 
 
 class SensorFusionNode(object):
 
     def __init__(self):
-        self.node_name = "Pure Pursuit"
+        self.node_name = "Sensor Fusion"
 
         # My variables
         self.colors = {0, 1}
@@ -23,9 +24,15 @@ class SensorFusionNode(object):
         self.reference_points = self.setup_parameter("~reference_points", 15)
         self.lane_size = self.setup_parameter("~lane_size", 0.585)
         self.v = self.setup_parameter("~linear_speed", 0.4)
+        self.alpha = self.setup_parameter("~alpha", 1.5)
+        self.init_time = time.time()
+
+        # Log file
+        self.file = open("/data/logs/log.txt", "w")
 
         # Subscribers
         self.sub = rospy.Subscriber("~segment_list_filtered", SegmentList, self.calculate_speed, queue_size=1)
+        self.sub_pose = rospy.Subscriber("~lane_pose", LanePose, self.log_to_file, queue_size=1)
 
         # Publication
         self.pub_car_cmd = rospy.Publisher("~car_cmd", Twist2DStamped, queue_size=1)
@@ -65,7 +72,7 @@ class SensorFusionNode(object):
     def estimate_lookahead_point(self, point_list):
         numerator_x, denominator_x = 0, 0
         numerator_y, denominator_y = 0, 0
-        for points in point_list:
+        for idx, points in enumerate(point_list):
             if len(points) > 2:
                 data = np.array(points)
                 x, y = data[:, :1], data[:, 1:2]
@@ -91,10 +98,10 @@ class SensorFusionNode(object):
         x, y = self.estimate_lookahead_point(point_list)
 
         # Calculate the angular speed
-        omega = 2 * self.v * y / (x ** 2 + y ** 2)
+        omega = self.alpha * 2 * self.v * y / (x ** 2 + y ** 2)
 
-        self.log_info("{} - {}".format(self.v, omega))
-        # self.log_info('------------------')
+        # Log the speed
+        self.file.write("[CMD]: {}, {}, {}\n".format(self.v, omega, time.time() - self.init_time))
         # Publish the speed
         self.publish_cmd(self.v, omega)
 
@@ -104,8 +111,15 @@ class SensorFusionNode(object):
         car_control_msg.omega = omega
         self.pub_car_cmd.publish(car_control_msg)
 
+    def log_to_file(self, lane_pose_msg):
+        d = lane_pose_msg.d
+        phi = lane_pose_msg.phi
+        msg = "[ERR]: {}, {}, {}\n".format(d, phi, time.time() - self.init_time)
+        self.file.write(msg)
+
     def on_shutdown(self):
         rospy.loginfo("[{}] Shutdown.".format(self.node_name))
+        self.file.close()
 
     def log_info(self, s):
         rospy.loginfo('[%s] %s' % (self.node_name, s))
