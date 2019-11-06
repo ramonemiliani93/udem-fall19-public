@@ -16,7 +16,7 @@ import threading
 import time
 from sw_06_line_detector.line_detector_plot import color_segment, drawLines
 import numpy as np
-
+import time
 
 class LineDetectorNode(object):
     def __init__(self):
@@ -130,7 +130,10 @@ class LineDetectorNode(object):
             return
         
         try:
+            start = time.time()
             self.processImage_(image_msg)
+            end = time.time()
+            rospy.loginfo("Elapsed: {} --! open" .format(end-start))
         finally:
             return
 
